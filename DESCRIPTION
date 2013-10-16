@@ -1,0 +1,8 @@
+Package: LRI
+Title: Long Range Interactions (Hi-C)
+Description: Package to calculate statistics of interaction between sites (Bed files) in Hi-C data (contact, cbin files)
+Version: 0.1
+Author: Stephen Henderson <s.henderson@ucl.ac.uk>
+Maintainer: Stephen Henderson <s.henderson@ucl.ac.uk>
+License: MIT
+Depends: R (>= 2.11.0), RSQLite, data.table, IRanges
