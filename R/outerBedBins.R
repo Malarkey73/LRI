@@ -16,8 +16,8 @@
 #' # devtools::install_github("dplyr")
 #' # for a bed file with 32138 sites, a bin file with 50441 bins, window = 1e7 (10Mb), resolution is 2.5kb
 #'   system.time((DT= outerBedBins(bedFile, binFile, Nbase=1e7)))
-#' #   user    system  elapsed 
-#' #   86.733  21.083  342.534
+#' #   user    system   elapsed 
+#' #   82.617  21.086   158.143
 #' # on an old iMac Core2 Duo, 2GB Ram
 
 
