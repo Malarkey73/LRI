@@ -1,0 +1,54 @@
+Long Range Interactions 3.
+========================================================
+
+### Data Plotting
+
+The plotting of this data is now quite simple although the statistical reasoning behind comparisons remains quite subtle - given the fact that the sites have different frequencies - althought this shouldn't effect the plots??? Needs thought.
+
+```{r plotLRI, message=FALSE}
+# I am now working on the iMac
+load("res.RData")
+ls()
+head(res1Chr1)
+
+library(ggplot2)
+qplot(x=log10(abs(start1-start2)), y=observed/expected, data=res1Chr1, facets=site1~site2, geom='smooth')+theme_bw()
+```
+
+***This is not the relation plotted by Wen-Ching!!! - It's just an example.***
+
+More work needed on this:
+
+1. Need to check through Wen-Ching script to see exactly the expected-observed relation he is plotting.
+2. First check all (or a reasonable selection) of chromosomes to check they all behave similarly.
+3. If all similar then aggregate the data - maybe parallelising the code to use multiple cores???
+4. Maybe interested in self-self bin interactions???
+5. Create simulated data to check correctness of code!!!
+
+
+est. 2-3 days work.
+
+6. Install RSQLite on CS server so analysis can be run there.
+7. Create package, scripts and man pages so group can run these analyses.
+
+est... dunno ???
+
+
+### More Work
+
+I've found it a little difficult to follow Wen-Chings code. I'm concerned I have quite different curves - all very similar. The best I can work out he is looking at log10 distance vs the log2(observed/expected). Where this produces -Inf values (log of zero) he replaces with a small positive value (0.5 in his code if I understand correctly --  0.001 in mine below)
+
+```{r moreWork, message=FALSE}
+temp = with(res1Chr1, log2(observed/expected))
+temp[temp == -Inf]<-0.001
+res1Chr1$temp=temp
+qplot(x=log10(abs(start1-start2)), y=temp, data=res1Chr1, facets=site1~site2, geom='smooth')+theme_bw()
+
+# all on the same plot
+qplot(x=log10(abs(start1-start2)), y=temp, data=res1Chr1, colour=paste(site1,site2), geom='smooth')+theme_bw()
+
+# bin2d
+qplot(x=log10(abs(start1-start2)), y=temp, data=res1Chr1, facets=site1~site2, geom='blank')+theme_bw()+geom_bin2d()
+
+
+```

@@ -1,0 +1,121 @@
+Long Range Interactions 1.
+========================================================
+I'm a fan of literate programming. This means that rather than create scripts/programs with embedded comments - you create documents with embedded code. This works well for a data analysis pipeline, or early development of code where the discipline of explanation for others helps to clarify your own thinking.
+
+It should also allow collaborators to understand or comment on technical choices without needing to understand every line of code. So this document in progress shows my work so far on Long Range Interactions. Consequently much of the code demonstrates the dimensions and form of that data and is not strictly necessary for the final script or package.
+
+Wen-Ching has previously writte code which performs the calculation of long range interactions between a selection of sites (BED files e.g. CTCFs) - that is the interaction strength (or log(observed/expected)) vs the distance of the interaction.
+
+This is very good but slow with high resolutions (<20kB) or long ranges (>5Mb). As the code is pure R - it will simply not work for 2.5Kb bins and 10Mb range. The larger data files ("...n.contact") for this contain approximately 50gb of data or 1.8billion rows. 
+
+A large server version of R might conceivably load such data into RAM but I don't believe the script would ever finish (and due to R memory inefficiency would probably crash after a while). In the future even higher resolutions HiC maybe possible given different combinations of cutting enzymes.. So best be prepared.
+
+Setting aside the mysterious "Misha" for the moment. My minimally complex solution is to do as much as feasible within R but pass the contact data to an indexed SQLite database for efficient disk based querying.
+
+### Bed and Bin Data
+
+First we deal with the Bed file (CTCF sites and locations) and the Bins file (bin IDs and their genomic coordinates).
+
+```{r bedPROCESS}
+  
+  # there was an error earlier as the bed file was mm9 and the bin files mm10 
+  # this is fixed using the UCSC tool http://genome.ucsc.edu/cgi-bin/hgLiftOver
+  bedFile="/mnt/store1/contacts/hglft_genome_25d2_929be0.bed"
+  binFile="/mnt/store1/contacts/mNSC_CT_1_2500.cbins"
+  
+  #Process the BED data  
+  bed=read.table(bedFile, colClasses=c('character', 'numeric', 'numeric'))
+  # "chr1" should be 1 like in other files.. grrrr...
+  colnames(bed)=c('chr', 'bedStart', 'bedEnd', 'siteType')  
+  bed$chr= gsub('chr', '', bed$chr)
+
+  #Process the BIN data
+  bins = read.table(binFile, header=T, colClasses=c('numeric','character', rep('numeric',3)))
+  rm(bedFile, binFile)
+
+head(bed)
+dim(bed)
+head(bins)
+dim(bins)
+
+```
+The bed and bins files are moderately large but can be handled OK within R. There are excellent Bioconductor tools including IRanges designed for handling sets of genomic rages such as this data (i.e. sequence alignments, chip peaks, etc). Best use them.
+
+The code is slightly complex as we have to split by chromosome as we are not interested in inter chromosome interactions.
+
+```{r splitterFUN}
+  require(IRanges)
+  # I split these up into a list of tables per chromosome
+  bed.split=split(bed, bed$chr)
+  bin.split=split(bins, bins$chr)
+  
+  rm(bed, bins)
+  
+  # I create an IRange of beds and bins for each chromosome
+  bed.split.ir=sapply(bed.split, 
+                      function(spl) 
+                        IRanges(start=spl$bedStart, end=spl$bedEnd, names=spl$siteType)
+                      )
+  bin.split.ir=sapply(bin.split, 
+                      function(spl) 
+                        IRanges(start=spl$from.coord, end=spl$to.coord, names=spl$cbin)
+                      )
+  rm(bed.split, bin.split)
+  
+  # multivariate nested apply
+  nearfun= function(bed.ir,bin.ir) nearest(bed.ir,bin.ir)
+  nearest.wh = mapply(nearfun, bed.split.ir, bin.split.ir)
+  bin.sel= mapply(FUN=function(bsi,nw)
+                  {bsi[nw,]}, 
+                  bin.split.ir, nearest.wh)
+  
+  rm(nearfun, nearest.wh, bin.split.ir)
+  
+
+  # a list of data.frames with bin, start and site 
+  bin.df.list= mapply(FUN=function(bin.sel, bed.split.ir)
+                {cbind(bin= names(bin.sel),start=start(bin.sel),site=names(bed.split.ir))}, 
+                bin.sel, 
+                bed.split.ir)
+
+  options(stringsAsFactors = FALSE)
+  bin.df.list=lapply(bin.df.list, data.frame)
+  rm(bin.sel, bed.split.ir)
+  head(bin.df.list[[1]])
+
+```
+
+The *nearest()* function, part of the IRanges package is used to find the bin range that contains each bed row. The final list *bin.df.list* is a list of tables, each table being a bin, the start site of that bin, and a bed site contained within - for each chromosome.
+
+Splitting it up by chromsome may eventually help to make the next steps more computationally tractable - by parallelising across processors (TO DO LATER). Pay attention to the inline comments below there are a couple of arguable technical choices.
+
+
+```{r outerFun}
+  library(data.table)
+  names(bin.df.list)
+  # For simplicity I'm going to start with just Chr1 not a parallelised function
+  chr1.df= bin.df.list[[1]]
+
+  # tech choice 1: If there are more than 1 of same site within a bin 
+  #I just remove the other rows.. it's not informative?
+  chr1.df=unique(chr1.df)
+  
+  chr1.df=data.table(chr1.df)
+  
+  # moderately large calculation - might fail on iMac or laptop ~ 1min???
+  # !!! using data.table speeds up this step about 10-fold
+  system.time((outer.chr1=cbind(chr1.df[rep(1:nrow(chr1.df),each=nrow(chr1.df)),],
+                                chr1.df[rep(1:nrow(chr1.df),times=nrow(chr1.df)),])))
+  gc()
+
+colnames(outer.chr1)=c("cbin1", "start1", "site1", "cbin2", "start2", "site2")
+# tech choice 2: I again remove all self to self 0 distance rows ???
+# quicker than I imagined
+system.time((outer.chr1=with(outer.chr1, outer.chr1[cbin1 != cbin2,])))
+head(outer.chr1)
+dim(outer.chr1)
+
+```
+Essentially the question requires a query (further below) using all pairwise combinations of the bins in *chr1.df*. It would be technically quite difficult to write such an SQL query (maybe ask Andrew in CS??? he likes a puzzle) - and possibly quite slow to run so better to precompute the combinations (as above). This takes up a fair bit of memory (~ a few million rows, ~1Gb per chromosome) but R can handle it.
+
+It won't handle a merge of millions of rows (*outer.chr1* times 20) on another billion unindexed rows (the contact data) ... so at this point we turn to RSQLite.

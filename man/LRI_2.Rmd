@@ -1,0 +1,88 @@
+Long Range Interactions 2.
+========================================================
+
+### RSQLite
+RSQLite is a free embeddable database that lacks the enterprise features of bigger platforms like Oracle, MySQL, or Postgres (sharding, networking, security) but with much less admin. It doesn't really handle large volumes of transactions well (i.e. inserting, deleting, rearranging data). However we have no need of these features we just want to build and index contacts tables once then query it. So RSQLite seems the simplest still feasible choice.
+
+First though some bash scripts to clean the contacts data.
+
+```{r bash, eval=FALSE}
+  #NB this is NOT R code it needs to be run on the bash command line
+  nohup awk '/^[0-9]/ { if ($2<=$1) print; }' mNSC_CT_1_2500.n_contact > temp.contact &
+  mv temp.contact mNSC_CT_1_2500.n_contact
+```
+
+The contact file actually contains twice as many lines as necessary... since e.g. bin1 to bin4 has the same contact data (expected, observed) as bin4 to bin1. If you think of all the data then as a square matrix we only need data below the diagonal - the upper half is redundant. The awk script makes a copy of these lines to temp, then since it is 24gb we overwrite the orginal with the temp copy, just < 1 billion rows. This takes an hour or more - hence the nohup so the process doesn't die if you are logged out. At this point you appreciate how slow a naive query (or 10s of millions of naive queries) on this data might be.
+
+The contact data can now be inserted into a database - using R as a client. Again due to time constraints the following should be run as a script - not interactively or with RStudio.
+
+```{r RSQLite, eval = FALSE}
+#!/usr/bin/Rscript
+library(sqldf)
+setwd("/mnt/store1/contacts")
+sqldf("attach 'contact.sqlite' as new")
+db <- dbConnect(SQLite(), dbname="contact.sqlite")
+dbWriteTable(conn = db, name = "Contact", value = "mNSC_CT_1_2500.n.contact", row.names = FALSE, 
+header = FALSE, sep='\t', col.names= c("cbin1", "cbin2", "expected", "observed"))
+sqldf("CREATE INDEX bin1bin2index ON Contact (cbin1, cbin2)", dbname = "contact.sqlite")
+
+# an "ANALYZE Contact"" SQL statement maybe useful here to optimise queries???
+
+# run this contactSQLdf.R on command line using 'nohup contactSQLdf.R &'
+```
+
+This will take some hours. Once done you can interactively test it out (using Rstudio etc). Prior to indexing a single query might take several minutes as it would literally search through all rows of data checking for matches. Now a single query should be instantaneous to human perception.
+
+```{r testingRSQLite, message=FALSE}
+  library(sqldf)
+  # example query - actually any perceptible gap is the system.time statement not the query!
+  system.time((testQuery=sqldf(
+    "SELECT expected, observed FROM contact WHERE cbin1==10  AND cbin2 BETWEEN 1 AND 10",
+    dbname="contact.sqlite")))
+  head(testQuery)
+  rm(testQuery)
+```
+
+Nevertheless it is still probably unacceptably slow to loop through (10s of) millions of rows of queries. Actually R doesn't have an interface for doing this dynamically (AFAIK) you would have to dynamically create strings of SELECT queries like the example above and run them one after the other... Likely very slow . It is tempting at this point to call C++ from within R to call SQLite.. but I think the marginally simpler solution is to write *outer.chr1* into another database table and then make an SQL join on the tables. This should be moderately fast???
+
+```{r writeOuterTable, eval=FALSE}
+  # In order to do this I will have to first write outer.chr1 to a file
+  # You cannot directly write an R object into RSQLite
+  head(outer.chr1)
+  # takes ~30secs
+  write.table(outer.chr1, "outer.chr1", sep='\t', quote=FALSE, row.names=FALSE)
+  # takes ~10 secs
+  dbWriteTable(conn = db, name = "OuterChr1", value = "outer.chr1", row.names = FALSE, 
+header = TRUE, sep='\t')
+  # pretty quick ~10 secs
+  system.time(sqldf("CREATE INDEX outerChr1index ON outerChr1 (cbin1, cbin2)", dbname = "contact.sqlite"))
+
+```
+
+Now the inner-join. This is a merge on the Contacts and outerChr1 table....Hmmm..Lets just a have a look at them first to remind ourselves.
+
+```{r tableReminder}
+sqldf(
+    "SELECT * FROM contact WHERE cbin1==10  AND cbin2 BETWEEN 1 AND 10",
+    dbname="contact.sqlite")
+
+sqldf(
+    "SELECT * FROM OuterChr1 WHERE cbin1==143  AND cbin2 BETWEEN 265 AND 418",
+    dbname="contact.sqlite")
+
+```
+
+So again the following due to time constraints should be run on the command line not interactively...
+
+```{r querySQLdf, eval=FALSE}
+
+#!/usr/bin/Rscript
+library(sqldf)
+resChr1 = sqldf(
+  "SELECT * FROM contact, OuterChr1 WHERE contact.cbin1 = OuterChr1.cbin1 AND contact.cbin2 = OuterChr1.cbin2",
+  dbname="contact.sqlite")
+save.image("res.RData")
+```
+  
+This works! It takes approx 10-15 mins - just on chromosome 1 for the moment. Results and plotting in next section...
+
