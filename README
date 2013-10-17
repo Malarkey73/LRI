@@ -1,0 +1,3 @@
+The initial aim of this package is to create functions for calculating Long Range Interactions between siytes in Hi-C data.
+
+however I think that some of the functions maybe generic anought to be used more generally for other Hi-C analysis tasks.
