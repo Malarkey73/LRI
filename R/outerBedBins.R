@@ -8,6 +8,7 @@
 #' @param .bedFile Path to your bed file
 #' @param .binFile Path to your bin file.
 #' @param window Restricted to inter-site combinations within window distance.
+#' @return DT An indexed data.table with positions, bins and site info. 
 #' @export
 #' @examples
 #' # hint:
@@ -21,38 +22,16 @@
 
 
 
-outerBedBins = function(bedFile, binFile, window=1e6)
+outerBedBins = function(bed, bins, window=1e6)
 {
   
 require(GenomicRanges)
 require(data.table)
 require("dplyr")
 
-
-
-
-Nbase =1e7
-bed=read.table(bedFile, colClasses=c('character', 'numeric', 'numeric', 'character'))
-# "chr1" should be 1 like in other files.. grrrr...
-colnames(bed)=c('chr', 'bedStart', 'bedEnd', 'siteType')  
-bed$chr= gsub('chr', '', bed$chr)
-
-#Process the BIN data
-bins = read.table(binFile, header=T, colClasses=c('numeric','character', rep('numeric',3)))
-rm(bedFile, binFile)
-
-# This is fucking magic... IRanges magic
-bed.gr= GRanges(seqnames=bed$chr,  IRanges(start=bed$bedStart, end=bed$bedEnd, names=bed$siteType))
-bin.gr= GRanges(seqnames=bins$chr,  IRanges(start=bins$from.coord, end=bins$to.coord, names=bins$cbin))
-nearest.wh=nearest(bed.gr, bin.gr)
-
-# I have now switched to the experimental dplyr - fucking NASA!
-# essentially it indexes the data but keeps in memory so any subsetting ooperations should be 100s times faster
-bedbin.dt = data.table(bin = names(bin.gr[nearest.wh]), start=start(bin.gr[nearest.wh]),site=names(bed.gr), chr=as.vector(seqnames(bed.gr)))
-
+bedbin.dt= bedToBins(bed, bins)
 # this is adding an index by group I presume??? Questionable dplyr syntax
 bedbin.dt = group_by(bedbin.dt, chr)
-rm(nearest.wh,bin.gr,bed.gr)
 
 # perhaps this outer fun can be speed up?? The unique will cut memory overhead whilst the loop proceeds
 outerFun= function(dt)
