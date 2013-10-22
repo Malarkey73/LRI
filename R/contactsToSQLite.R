@@ -19,7 +19,7 @@
 #' # on an old iMac Core2 Duo, 2GB Ram
 #' 
 
-contactsToSQLite= function(contactFile, DBname, Analyse=FALSE)
+contactsToSQLite= function(contactFile, DBname)
   {
   require(sqldf)
   sqldf(paste0("attach ", "\'",DBname, "\'", " as new"))
@@ -28,7 +28,7 @@ contactsToSQLite= function(contactFile, DBname, Analyse=FALSE)
              header = FALSE, sep='\t', col.names= c("cbin1", "cbin2", "expected", "observed"))
   sqldf("CREATE INDEX bin1bin2index ON Contact (cbin1, cbin2)", dbname = DBname)
   # Analyse when tested microbenchamrked made no difference to SELECT speed on small files
-  #  sqldf("ANALYZE Contact", dbname=DBname)
+  sqldf("ANALYZE Contact", dbname=DBname)
   return(paste("Created", DBname, "in working directory."))
   }
 

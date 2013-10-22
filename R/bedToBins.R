@@ -9,6 +9,7 @@
 
 bedToBins=function(bed, bins){
   require(GenomicRanges)
+  require(IRanges)
   require(data.table)
   # [1] because data.table has dual data.frame data.table class
   if(class(bed)[1] != "GRanges") bed = bedToGRanges(bed)
@@ -17,6 +18,6 @@ bedToBins=function(bed, bins){
   return(data.table(bin = names(bins[nearest.wh]), 
                     start=start(bins[nearest.wh]),
                     site=names(bed), 
-                    chr=as.vector(seqnames(bed))))
+                    chr=as.factor(seqnames(bed))))
   
 }
