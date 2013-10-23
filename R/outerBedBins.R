@@ -49,7 +49,7 @@ outer.bedbin.dt=rbindlist(outer.bedbin.dt)
 
 # we only want to query distances within an Nbase window - this should cut it down further
 outer.bedbin.dt = outer.bedbin.dt[abs(x.start-y.start) < window,]
-
+setnames(outer.bedbin.dt, c("cbin1", 'start1', 'site1', "cbin2", "start2", "site2"))
 return(outer.bedbin.dt)
 }
 
