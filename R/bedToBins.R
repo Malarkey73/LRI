@@ -18,6 +18,6 @@ bedToBins=function(bed, bins){
   return(data.table(bin = names(bins[nearest.wh]), 
                     start=start(bins[nearest.wh]),
                     site=names(bed), 
-                    chr=as.factor(seqnames(bed))))
+                    chr=as.factor(as.character(seqnames(bed)))))
   
 }
