@@ -11,7 +11,7 @@ bedToGRanges= function(bed){
   require(GenomicRanges)
   # if this is a path to a file
   if(is.character(bed)){
-    bed=read.table(bedFile, colClasses=c('character', 'numeric', 'numeric', 'character'))
+    bed=read.table(bed, colClasses=c('character', 'numeric', 'numeric', 'character'))
     # "chr1" should be 1 like in other files.. grrrr...
     colnames(bed)=c('chr', 'bedStart', 'bedEnd', 'siteType')  
     bed$chr= gsub('chr', '', bed$chr)
