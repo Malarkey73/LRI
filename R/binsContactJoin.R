@@ -19,5 +19,5 @@ binsContactJoin=function(bins.DT, DBname)
 {
   src.sql=src_sqlite(DBname)
   x=tbl(src.sql, "Contact")
-  return(inner_join(x, bins.DT, by=c("cbin1", "cbin2"), copy=T))
+  return(collect(inner_join(x, bins.DT, by=c("cbin1", "cbin2"), copy=T)))
 }
