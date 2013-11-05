@@ -19,3 +19,4 @@ Collate:
     'binToGRanges.R'
     'contactsToSQLite.R'
     'outerBedBins.R'
+    'binsContactJoin.R'
