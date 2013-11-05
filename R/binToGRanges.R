@@ -7,11 +7,11 @@
 #' @param bed
 #' 
 
-binToGRanges= function(bin){
+binToGRanges= function(bins){
   require(GenomicRanges)
   # if this is a path to a file
-  if(is.character(bin)){
-    bins = read.table(binFile, header=T, colClasses=c('numeric','character', rep('numeric',3)))
+  if(is.character(bins)){
+    bins = read.table(bins, header=T, colClasses=c('numeric','character', rep('numeric',3)))
         
   }
   
