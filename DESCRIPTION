@@ -11,7 +11,9 @@ Depends:
     RSQLite,
     data.table,
     GenomicRanges,
-	sqldf
+	  sqldf,
+    dplyr,
+    RSQLite.extfuns
 Collate:
     'LRI-package.r'
     'bedToBins.R'
